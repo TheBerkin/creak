@@ -24,7 +24,7 @@ use creak;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
-    
+
     // Get a file name from the cmdline args
     let file_name = match args.first() {
         Some(arg) => arg,
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let decoder = creak::Decoder::open(&file_name)?;
 
     // Print basic audio info
-    println!("{} channels, {}Hz", decoder.channels(), decoder.sample_rate());
+    eprintln!("Channels: {}, {}Hz", decoder.channels(), decoder.sample_rate());
 
     let mut stdout = io::stdout();
 
