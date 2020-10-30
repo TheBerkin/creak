@@ -23,11 +23,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("Channels: {}, {}Hz", decoder.channels(), decoder.sample_rate());
 
     let mut stdout = io::stdout();
+    let mut num_samples: usize = 0;
 
     // Dump all samples to stdout
     for sample in decoder.into_samples()? {
         stdout.write(&sample?.to_le_bytes())?;
+        num_samples += 1;
     }
+
+    eprintln!("Samples read: {}", num_samples);
 
     Ok(())
 }

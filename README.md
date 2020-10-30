@@ -9,8 +9,8 @@ All listed formats will eventually be implemented.
 |Format |Feature  |Backend                                     |Status|
 |-------|---------|--------------------------------------------|:----:|
 |WAV    |`wav`    |[hound](https://crates.io/crates/hound)     |✅
+|Vorbis |`vorbis` |[lewton](https://crates.io/crates/lewton)   |✅
 |MP3    |`mp3`    |[minimp3](https://crates.io/crates/minimp3) |🛠
-|Vorbis |`vorbis` |[lewton](https://crates.io/crates/lewton)   |🛠
 |FLAC   |`flac`   |[claxon](https://crates.io/crates/claxon)   |🛠
 
 ## Example
@@ -41,11 +41,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("Channels: {}, {}Hz", decoder.channels(), decoder.sample_rate());
 
     let mut stdout = io::stdout();
+    let mut num_samples: usize = 0;
 
     // Dump all samples to stdout
     for sample in decoder.into_samples()? {
         stdout.write(&sample?.to_le_bytes())?;
+        num_samples += 1;
     }
+
+    eprintln!("Samples read: {}", num_samples);
 
     Ok(())
 }

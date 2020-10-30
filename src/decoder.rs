@@ -1,6 +1,7 @@
 use std::{fmt::Display, io, path::Path};
 
 #[cfg(feature = "wav")] mod wav;
+#[cfg(feature = "vorbis")] mod vorbis;
 
 pub type Sample = f32;
 
@@ -55,7 +56,9 @@ impl Iterator for SampleIterator {
 
 pub(crate) enum FormatDecoder {
     #[cfg(feature = "wav")]
-    Wav(self::wav::WavDecoder)
+    Wav(self::wav::WavDecoder),
+    #[cfg(feature = "vorbis")]
+    Vorbis(self::vorbis::VorbisDecoder),
 }
 
 impl FormatDecoder {
@@ -72,12 +75,14 @@ impl FormatDecoder {
                     )*
                     other => return Err(DecoderError::UnsupportedExtension(other.to_owned()))
                 }
-                
             }
         }
+
+        // Check the file extension to see which backend to use
         if let Some(ext) = path.as_ref().extension().and_then(|ext| ext.to_str()) {
             get_decoder!(ext,
-                "wav" => requires "wav" for FormatDecoder::Wav(self::wav::WavDecoder::open(path)?)
+                "wav" => requires "wav" for FormatDecoder::Wav(self::wav::WavDecoder::open(path)?),
+                "ogg" => requires "vorbis" for FormatDecoder::Vorbis(self::vorbis::VorbisDecoder::open(path)?)
             )
         }
         Err(DecoderError::NoExtension)
@@ -88,6 +93,8 @@ impl FormatDecoder {
         match self {
             #[cfg(feature = "wav")]
             FormatDecoder::Wav(decoder) => Ok(SampleIterator(decoder.into_samples()?)),
+            #[cfg(feature = "vorbis")]
+            FormatDecoder::Vorbis(decoder) => Ok(SampleIterator(decoder.into_samples()?)),
             _ => unreachable!()
         }
     }
@@ -97,6 +104,8 @@ impl FormatDecoder {
         match self {
             #[cfg(feature = "wav")]
             FormatDecoder::Wav(d) => d.sample_rate(),
+            #[cfg(feature = "vorbis")]
+            FormatDecoder::Vorbis(d) => d.sample_rate(),
             _ => unreachable!()
         }
     }
@@ -106,6 +115,8 @@ impl FormatDecoder {
         match self {
             #[cfg(feature = "wav")]
             FormatDecoder::Wav(d) => d.channels(),
+            #[cfg(feature = "vorbis")]
+            FormatDecoder::Vorbis(d) => d.channels(),
             _ => unreachable!()
         }
     }

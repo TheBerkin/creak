@@ -10,6 +10,7 @@ pub struct WavDecoder {
 }
 
 impl WavDecoder {
+    #[inline]
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, DecoderError> {
         let reader = WavReader::open(path).map_err(hound_err_to_decoder_err)?;
         Ok(Self {
