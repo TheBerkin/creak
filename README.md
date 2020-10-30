@@ -31,18 +31,15 @@ creak = { version = "*", default-features = false, features = ["wav", "vorbis"] 
 ```rust
 // Simple program that reads an audio file and dumps its samples in 32-bit float to stdout
 
-use std::{env, io};
-use std::io::Write;
+use std::{env, io, io::Write};
 use creak;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = env::args().skip(1).collect();
-
     // Get a file name from the cmdline args
-    let file_name = match args.first() {
+    let file_name = match env::args().nth(1) {
         Some(arg) => arg,
         None => {
-            eprintln!("no audio file specified!");
+            eprintln!("No audio file specified!");
             return Ok(())
         }
     };
@@ -50,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Open an audio file of any supported format with one function call
     let decoder = creak::Decoder::open(&file_name)?;
 
-    // Print basic audio info
+    // Print basic audio info to stderr
     let info = decoder.info();
     eprintln!("Format: {}; Channels: {}; Sample Rate: {}Hz", 
         info.format(), 
@@ -68,7 +65,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     eprintln!("{} samples(s) read.", num_samples);
-
     Ok(())
 }
 ```
