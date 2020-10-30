@@ -77,6 +77,8 @@ Creak cannot handle certain types of audio data, namely:
 * MP3 files with variable sample rate or channel count will cause an error while decoding.
 * WAV files with "exotic" sample formats are not supported. I don't know who is using 64-bit float samples, but they're too powerful for poor Creak. Have mercy.
 
+## [Changelog](./CHANGELOG.md)
+
 ## License
 
 Licensed under either of
