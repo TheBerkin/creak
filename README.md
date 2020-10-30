@@ -57,6 +57,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Exceptions
+
+Creak cannot handle certain types of audio data, namely:
+
+* MP3 files with variable sample rate or channel count will cause an error while decoding.
+
 ## License
 
 Licensed under either of
