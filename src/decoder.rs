@@ -5,6 +5,7 @@ use std::error::Error;
 #[cfg(feature = "wav")] mod wav;
 #[cfg(feature = "vorbis")] mod vorbis;
 #[cfg(feature = "mp3")] mod mp3;
+#[cfg(feature = "flac")] mod flac;
 
 pub type Sample = f32;
 
@@ -64,6 +65,8 @@ pub(crate) enum FormatDecoder {
     Vorbis(self::vorbis::VorbisDecoder),
     #[cfg(feature = "mp3")]
     Mp3(self::mp3::Mp3Decoder),
+    #[cfg(feature = "flac")]
+    Flac(self::flac::FlacDecoder),
 }
 
 impl FormatDecoder {
@@ -88,7 +91,8 @@ impl FormatDecoder {
             get_decoder!(ext,
                 "wav" => requires "wav" for FormatDecoder::Wav(self::wav::WavDecoder::open(path)?),
                 "ogg" => requires "vorbis" for FormatDecoder::Vorbis(self::vorbis::VorbisDecoder::open(path)?),
-                "mp3" => requires "mp3" for FormatDecoder::Mp3(self::mp3::Mp3Decoder::open(path)?)
+                "mp3" => requires "mp3" for FormatDecoder::Mp3(self::mp3::Mp3Decoder::open(path)?),
+                "flac" => requires "flac" for FormatDecoder::Flac(self::flac::FlacDecoder::open(path)?)
             )
         }
         Err(DecoderError::NoExtension)
@@ -98,11 +102,13 @@ impl FormatDecoder {
     pub fn into_samples(self) -> Result<SampleIterator, DecoderError> {
         match self {
             #[cfg(feature = "wav")]
-            FormatDecoder::Wav(decoder) => Ok(SampleIterator(decoder.into_samples()?)),
+            FormatDecoder::Wav(d) => Ok(SampleIterator(d.into_samples()?)),
             #[cfg(feature = "vorbis")]
-            FormatDecoder::Vorbis(decoder) => Ok(SampleIterator(decoder.into_samples()?)),
+            FormatDecoder::Vorbis(d) => Ok(SampleIterator(d.into_samples()?)),
             #[cfg(feature = "mp3")]
-            FormatDecoder::Mp3(decoder) => Ok(SampleIterator(decoder.into_samples()?)),
+            FormatDecoder::Mp3(d) => Ok(SampleIterator(d.into_samples()?)),
+            #[cfg(feature = "flac")]
+            FormatDecoder::Flac(d) => Ok(SampleIterator(d.into_samples()?)),
         }
     }
 
@@ -115,6 +121,8 @@ impl FormatDecoder {
             FormatDecoder::Vorbis(d) => d.sample_rate(),
             #[cfg(feature = "mp3")]
             FormatDecoder::Mp3(d) => d.sample_rate(),
+            #[cfg(feature = "flac")]
+            FormatDecoder::Flac(d) => d.sample_rate(),
         }
     }
 
@@ -127,6 +135,8 @@ impl FormatDecoder {
             FormatDecoder::Vorbis(d) => d.channels(),
             #[cfg(feature = "mp3")]
             FormatDecoder::Mp3(d) => d.channels(),
+            #[cfg(feature = "flac")]
+            FormatDecoder::Flac(d) => d.channels(),
         }
     }
 }
