@@ -7,6 +7,7 @@ use std::error::Error;
 #[cfg(feature = "mp3")] mod mp3;
 #[cfg(feature = "flac")] mod flac;
 
+/// The type of decoded audio samples.
 pub type Sample = f32;
 
 /// An audio decoder.
@@ -18,6 +19,14 @@ pub struct Decoder {
 
 impl Decoder {
     /// Attempts to open the specified audio file for decoding.
+    ///
+    /// Creak uses the file's extension to determine what kind of format it is.
+    /// The currently recognized extensions are:
+    ///
+    /// * **.wav** - WAV.
+    /// * **.ogg** - Ogg Vorbis.
+    /// * **.mp3** - MP3.
+    /// * **.flac** - FLAC.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, DecoderError> {
         Ok(Self {
             decoder: FormatDecoder::open(path)?
