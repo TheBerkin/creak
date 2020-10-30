@@ -2,7 +2,7 @@ use std::{io::BufReader, fs::File, path::Path};
 
 use hound::{WavReader, WavSpec};
 
-use crate::DecoderError;
+use crate::{AudioFormat, AudioInfo, DecoderError};
 
 pub struct WavDecoder {
     reader: WavReader<BufReader<File>>,
@@ -20,13 +20,13 @@ impl WavDecoder {
     }
 
     #[inline]
-    pub fn sample_rate(&self) -> u32 {
-        self.spec.sample_rate
-    }
-
-    #[inline]
-    pub fn channels(&self) -> usize {
-        self.spec.channels as _
+    pub fn info(&self) -> AudioInfo {
+        let spec = self.spec;
+        AudioInfo {
+            format: AudioFormat::Wav,
+            sample_rate: spec.sample_rate,
+            channels: spec.channels as usize,
+        }
     }
 
     pub fn into_samples(self) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {

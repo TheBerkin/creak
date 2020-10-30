@@ -2,11 +2,11 @@ use std::{fs::File, io::Read, path::Path, io::Seek};
 
 use lewton::inside_ogg::OggStreamReader;
 
-use crate::DecoderError;
+use crate::{AudioFormat, AudioInfo, DecoderError};
 
 pub struct VorbisDecoder {
     reader: OggStreamReader<File>,
-    channels: u32,
+    channels: usize,
     sample_rate: u32,
 }
 
@@ -22,20 +22,19 @@ impl VorbisDecoder {
         };
 
         Ok(Self {
-            channels: reader.ident_hdr.audio_channels as u32,
+            channels: reader.ident_hdr.audio_channels as usize,
             sample_rate: reader.ident_hdr.audio_sample_rate,
             reader,
         })
     }
 
     #[inline]
-    pub fn sample_rate(&self) -> u32 {
-        self.sample_rate
-    }
-
-    #[inline]
-    pub fn channels(&self) -> usize {
-        self.channels as _
+    pub fn info(&self) -> AudioInfo {
+        AudioInfo {
+            format: AudioFormat::Vorbis,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+        }
     }
 
     #[inline]

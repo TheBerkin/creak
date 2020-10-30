@@ -2,7 +2,7 @@ use std::{fs::File, io::Read, path::Path};
 
 use claxon::FlacReader;
 
-use crate::DecoderError;
+use crate::{AudioFormat, AudioInfo, DecoderError};
 
 pub struct FlacDecoder {
     reader: FlacReader<File>,
@@ -25,13 +25,12 @@ impl FlacDecoder {
 
 impl FlacDecoder {
     #[inline]
-    pub fn channels(&self) -> usize {
-        self.channels
-    }
-
-    #[inline]
-    pub fn sample_rate(&self) -> u32 {
-        self.sample_rate
+    pub fn info(&self) -> AudioInfo {
+        AudioInfo {
+            format: AudioFormat::Flac,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+        }
     }
 
     #[inline]

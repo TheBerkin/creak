@@ -17,6 +17,54 @@ pub struct Decoder {
     decoder: FormatDecoder
 }
 
+/// Information about an opened audio file.
+#[derive(Debug, Clone)]
+pub struct AudioInfo {
+    sample_rate: u32,
+    channels: usize,
+    format: AudioFormat,
+}
+
+impl AudioInfo {
+    /// Gets the sample rate of the audio.
+    #[inline]
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    /// Gets the number of channels in the audio.
+    #[inline]
+    pub fn channels(&self) -> usize {
+        self.channels
+    }
+
+    /// Gets the original format of the audio.
+    #[inline] 
+    pub fn format(&self) -> AudioFormat {
+        self.format
+    }
+}
+
+/// Indicates the format of an audio stream.
+#[derive(Debug, Copy, Clone)]
+pub enum AudioFormat {
+    Wav,
+    Vorbis,
+    Mp3,
+    Flac,
+}
+
+impl Display for AudioFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AudioFormat::Wav => write!(f, "WAV"),
+            AudioFormat::Vorbis => write!(f, "Vorbis"),
+            AudioFormat::Mp3 => write!(f, "MP3"),
+            AudioFormat::Flac => write!(f, "FLAC"),
+        }
+    }
+}
+
 impl Decoder {
     /// Attempts to open the specified audio file for decoding.
     ///
@@ -35,16 +83,10 @@ impl Decoder {
 }
 
 impl Decoder {
-    /// Gets the sample rate of the audio.
+    /// Gets information about the audio, such as channel count and sample rate.
     #[inline]
-    pub fn sample_rate(&self) -> u32 {
-        self.decoder.sample_rate()
-    }
-
-    /// Gets the channel count of the audio.
-    #[inline]
-    pub fn channels(&self) -> usize {
-        self.decoder.channels()
+    pub fn info(&self) -> AudioInfo {
+        self.decoder.info()
     }
 
     /// Consumes the `Decoder` and returns an iterator over the samples.
@@ -122,30 +164,16 @@ impl FormatDecoder {
     }
 
     #[inline]
-    pub fn sample_rate(&self) -> u32 {
+    pub fn info(&self) -> AudioInfo {
         match self {
             #[cfg(feature = "wav")]
-            FormatDecoder::Wav(d) => d.sample_rate(),
+            FormatDecoder::Wav(d) => d.info(),
             #[cfg(feature = "vorbis")]
-            FormatDecoder::Vorbis(d) => d.sample_rate(),
+            FormatDecoder::Vorbis(d) => d.info(),
             #[cfg(feature = "mp3")]
-            FormatDecoder::Mp3(d) => d.sample_rate(),
+            FormatDecoder::Mp3(d) => d.info(),
             #[cfg(feature = "flac")]
-            FormatDecoder::Flac(d) => d.sample_rate(),
-        }
-    }
-
-    #[inline]
-    pub fn channels(&self) -> usize {
-        match self {
-            #[cfg(feature = "wav")]
-            FormatDecoder::Wav(d) => d.channels(),
-            #[cfg(feature = "vorbis")]
-            FormatDecoder::Vorbis(d) => d.channels(),
-            #[cfg(feature = "mp3")]
-            FormatDecoder::Mp3(d) => d.channels(),
-            #[cfg(feature = "flac")]
-            FormatDecoder::Flac(d) => d.channels(),
+            FormatDecoder::Flac(d) => d.info(),
         }
     }
 }

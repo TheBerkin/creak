@@ -1,7 +1,7 @@
 use std::{fs::File, path::Path, io::Read};
 use minimp3::{Decoder as Mp3Reader, Frame, Error as Mp3Error};
 
-use crate::DecoderError;
+use crate::{AudioFormat, AudioInfo, DecoderError};
 
 pub struct Mp3Decoder {
     reader: Mp3Reader<File>,
@@ -35,13 +35,12 @@ impl Mp3Decoder {
 
 impl Mp3Decoder {
     #[inline]
-    pub fn sample_rate(&self) -> u32 {
-        self.sample_rate
-    }
-
-    #[inline]
-    pub fn channels(&self) -> usize {
-        self.channels
+    pub fn info(&self) -> AudioInfo {
+        AudioInfo {
+            format: AudioFormat::Mp3,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+        }
     }
 
     #[inline]

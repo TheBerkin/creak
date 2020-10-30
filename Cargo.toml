@@ -1,6 +1,6 @@
 [package]
 name = "creak"
-version = "0.1.0"
+version = "0.2.0"
 description = "Lightweight audio decoder. Supports WAV, Vorbis, MP3, FLAC"
 authors = ["Nicholas Fleck <TheBerkin@users.noreply.github.com>"]
 edition = "2018"
