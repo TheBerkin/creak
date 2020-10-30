@@ -34,8 +34,8 @@ impl VorbisDecoder {
     }
 
     #[inline]
-    pub fn channels(&self) -> u32 {
-        self.channels
+    pub fn channels(&self) -> usize {
+        self.channels as _
     }
 
     #[inline]

@@ -25,8 +25,8 @@ impl WavDecoder {
     }
 
     #[inline]
-    pub fn channels(&self) -> u32 {
-        self.spec.channels as u32
+    pub fn channels(&self) -> usize {
+        self.spec.channels as _
     }
 
     pub fn into_samples(self) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {

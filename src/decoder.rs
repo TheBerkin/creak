@@ -1,7 +1,10 @@
 use std::{fmt::Display, io, path::Path};
 
+use std::error::Error;
+
 #[cfg(feature = "wav")] mod wav;
 #[cfg(feature = "vorbis")] mod vorbis;
+#[cfg(feature = "mp3")] mod mp3;
 
 pub type Sample = f32;
 
@@ -30,7 +33,7 @@ impl Decoder {
 
     /// Gets the channel count of the audio.
     #[inline]
-    pub fn channels(&self) -> u32 {
+    pub fn channels(&self) -> usize {
         self.decoder.channels()
     }
 
@@ -59,6 +62,8 @@ pub(crate) enum FormatDecoder {
     Wav(self::wav::WavDecoder),
     #[cfg(feature = "vorbis")]
     Vorbis(self::vorbis::VorbisDecoder),
+    #[cfg(feature = "mp3")]
+    Mp3(self::mp3::Mp3Decoder),
 }
 
 impl FormatDecoder {
@@ -82,7 +87,8 @@ impl FormatDecoder {
         if let Some(ext) = path.as_ref().extension().and_then(|ext| ext.to_str()) {
             get_decoder!(ext,
                 "wav" => requires "wav" for FormatDecoder::Wav(self::wav::WavDecoder::open(path)?),
-                "ogg" => requires "vorbis" for FormatDecoder::Vorbis(self::vorbis::VorbisDecoder::open(path)?)
+                "ogg" => requires "vorbis" for FormatDecoder::Vorbis(self::vorbis::VorbisDecoder::open(path)?),
+                "mp3" => requires "mp3" for FormatDecoder::Mp3(self::mp3::Mp3Decoder::open(path)?)
             )
         }
         Err(DecoderError::NoExtension)
@@ -95,7 +101,8 @@ impl FormatDecoder {
             FormatDecoder::Wav(decoder) => Ok(SampleIterator(decoder.into_samples()?)),
             #[cfg(feature = "vorbis")]
             FormatDecoder::Vorbis(decoder) => Ok(SampleIterator(decoder.into_samples()?)),
-            _ => unreachable!()
+            #[cfg(feature = "mp3")]
+            FormatDecoder::Mp3(decoder) => Ok(SampleIterator(decoder.into_samples()?)),
         }
     }
 
@@ -106,18 +113,20 @@ impl FormatDecoder {
             FormatDecoder::Wav(d) => d.sample_rate(),
             #[cfg(feature = "vorbis")]
             FormatDecoder::Vorbis(d) => d.sample_rate(),
-            _ => unreachable!()
+            #[cfg(feature = "mp3")]
+            FormatDecoder::Mp3(d) => d.sample_rate(),
         }
     }
 
     #[inline]
-    pub fn channels(&self) -> u32 {
+    pub fn channels(&self) -> usize {
         match self {
             #[cfg(feature = "wav")]
             FormatDecoder::Wav(d) => d.channels(),
             #[cfg(feature = "vorbis")]
             FormatDecoder::Vorbis(d) => d.channels(),
-            _ => unreachable!()
+            #[cfg(feature = "mp3")]
+            FormatDecoder::Mp3(d) => d.channels(),
         }
     }
 }
@@ -140,12 +149,12 @@ pub enum DecoderError {
     },
 }
 
-impl std::error::Error for DecoderError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl Error for DecoderError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         None
     }
 
-    fn cause(&self) -> Option<&dyn std::error::Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         self.source()
     }
 }
