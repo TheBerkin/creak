@@ -15,6 +15,17 @@ A barebones, opinionated Rust crate for decoding audio files into raw 32-bit flo
 
 (✅ = Implemented; 🛠 = WIP)
 
+### Building Creak with partial format support
+
+Creak compiles with support for all formats by default, but this may not be desirable to everyone. To enable support for only specific formats, you'll need to manually specify the features in your `Cargo.toml` like this:
+
+```toml
+[dependencies]
+
+# Only include support for WAV and Vorbis
+creak = { version = "*", default-features = false, features = ["wav", "vorbis"] }
+```
+
 ## Example
 
 ```rust
