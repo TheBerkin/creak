@@ -51,7 +51,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let decoder = creak::Decoder::open(&file_name)?;
 
     // Print basic audio info
-    eprintln!("Channels: {}, {}Hz", decoder.channels(), decoder.sample_rate());
+    let info = decoder.info();
+    eprintln!("Format: {}; Channels: {}; Sample Rate: {}Hz", 
+        info.format(), 
+        info.channels(), 
+        info.sample_rate()
+    );
 
     let mut stdout = io::stdout();
     let mut num_samples: usize = 0;
@@ -62,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         num_samples += 1;
     }
 
-    eprintln!("Samples read: {}", num_samples);
+    eprintln!("{} samples(s) read.", num_samples);
 
     Ok(())
 }
