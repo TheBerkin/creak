@@ -11,14 +11,17 @@ keywords = ["audio", "decoder", "sound"]
 categories = ["multimedia::audio", "multimedia::encoding", "encoding", "filesystem"]
 readme = "README.md"
 exclude = [
+    "/samples",
     "*.wav",
     "*.flac",
     "*.mp3",
     "*.ogg",
-    "*.raw"
+    "*.raw",
 ]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "creak-raw"
+path = "src/tools/creak-raw.rs"
 
 [profile.release]
 codegen-units = 1
