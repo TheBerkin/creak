@@ -152,7 +152,7 @@ impl Decoder {
     /// The format of the source samples is determined from the `RawAudioSpec` passed to the function.
     #[inline]
     pub fn open_raw<P: AsRef<Path>>(path: P, spec: RawAudioSpec) -> Result<Self, DecoderError> {
-        let f = File::open(path).map_err(|err| DecoderError::IOError(err))?;
+        let f = File::open(path).map_err(DecoderError::IOError)?;
         Ok(Self {
             decoder: FormatDecoder::Raw(RawDecoder::new(BufReader::new(f), spec)?)
         })

@@ -1,5 +1,5 @@
 
-use std::io::{Read, Seek, SeekFrom, Error as IOError, ErrorKind as IOErrorKind};
+use std::io::{Read, Seek, SeekFrom};
 
 use crate::{AudioFormat, AudioInfo, DecoderError, Endian, RawAudioSpec, RawSampleFormat};
 

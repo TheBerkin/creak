@@ -1,6 +1,6 @@
 [package]
 name = "creak"
-version = "0.2.0"
+version = "0.3.0"
 description = "Lightweight audio decoder. Converts popular formats to raw 32-bit float samples."
 authors = ["Nicholas Fleck <TheBerkin@users.noreply.github.com>"]
 edition = "2018"
