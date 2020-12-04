@@ -50,7 +50,18 @@ impl WavDecoder {
                     );
                 Box::new(iter)
             },
-            (24, hound::SampleFormat::Int) | (32, hound::SampleFormat::Int) => {
+            (24, hound::SampleFormat::Int) => {
+                const MAX_I24: i32 = 0x7fffff;
+                let iter = self.reader
+                    .into_samples::<i32>()
+                    .map(|sample| 
+                        sample
+                        .map(|sample| sample as f32 / MAX_I24 as f32)
+                        .map_err(hound_err_to_decoder_err)
+                    );
+                Box::new(iter)
+            },
+            (32, hound::SampleFormat::Int) => {
                 let iter = self.reader
                     .into_samples::<i32>()
                     .map(|sample| 
