@@ -15,7 +15,7 @@ pub type Sample = f32;
 
 /// An audio decoder.
 ///
-/// Use `Decoder::open` to open an audio file and read samples.
+/// Use `Decoder::open` or `Decoder::open_raw` to open an audio file and read samples.
 pub struct Decoder {
     decoder: FormatDecoder
 }
