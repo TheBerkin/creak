@@ -71,7 +71,7 @@ pub enum RawSampleFormat {
     Signed32,
     /// Unsigned 64-bit integer sample format.
     Unsigned64,
-    /// signed 64-bit integer sample format.
+    /// Signed 64-bit integer sample format.
     Signed64
 }
 
