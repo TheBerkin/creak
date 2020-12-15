@@ -1,29 +1,35 @@
-use std::{fs::File, io::Read, path::Path};
-
+use super::*;
 use claxon::FlacReader;
 
-use crate::{AudioFormat, AudioInfo, DecoderError};
-
-pub struct FlacDecoder {
-    reader: FlacReader<File>,
+pub struct FlacDecoder<R: Read + Seek> {
+    reader: FlacReader<R>,
     sample_rate: u32,
     channels: usize,
 }
 
-impl FlacDecoder {
+impl<R: Read + Seek> FlacDecoder<R> {
     #[inline]
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, DecoderError> {
-        let reader = FlacReader::open(path).map_err(flac_err_as_decoder_err)?;
-        let (sample_rate, channels) = (reader.streaminfo().sample_rate, reader.streaminfo().channels);
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<FlacDecoder<File>, DecoderError> {
+        let f = File::open(path).map_err(|err| DecoderError::IOError(err))?;
+        FlacDecoder::from_reader(f)
+    }
+
+    #[inline]
+    pub fn from_reader(reader: R) -> Result<Self, DecoderError> {
+        let reader = FlacReader::new(reader).map_err(flac_err_as_decoder_err)?;
+        let (sample_rate, channels) = (
+            reader.streaminfo().sample_rate,
+            reader.streaminfo().channels,
+        );
         Ok(Self {
             sample_rate,
             channels: channels as _,
-            reader
+            reader,
         })
     }
 }
 
-impl FlacDecoder {
+impl<R: 'static + Read + Seek> FlacDecoder<R> {
     #[inline]
     pub fn info(&self) -> AudioInfo {
         AudioInfo {
@@ -34,7 +40,9 @@ impl FlacDecoder {
     }
 
     #[inline]
-    pub fn into_samples(self) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {
+    pub fn into_samples(
+        self,
+    ) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {
         Ok(Box::new(FlacSampleIterator::new(self.reader)))
     }
 }
@@ -50,13 +58,12 @@ struct FlacSampleIterator<R: Read> {
 impl<'a, R: Read + 'a> FlacSampleIterator<R> {
     fn new(reader: FlacReader<R>) -> Self {
         let info = reader.streaminfo();
-        
         Self {
             cur_block: Vec::with_capacity(info.max_block_size as usize * info.channels as usize),
             max_sample_value: (i32::MAX >> (32 - info.bits_per_sample)) as f32,
             reader,
             cur_block_len: 0,
-            block_cursor: 0
+            block_cursor: 0,
         }
     }
 }
@@ -89,7 +96,11 @@ impl<R: Read> Iterator for FlacSampleIterator<R> {
 fn flac_err_as_decoder_err(error: claxon::Error) -> DecoderError {
     match error {
         claxon::Error::IoError(ioerr) => DecoderError::IOError(ioerr),
-        claxon::Error::FormatError(fmterr) => DecoderError::FormatError(format!("flac: format error: {}", fmterr)),
-        claxon::Error::Unsupported(what) => DecoderError::FormatError(format!("flac: unsupported: {}", what)),
+        claxon::Error::FormatError(fmterr) => {
+            DecoderError::FormatError(format!("flac: format error: {}", fmterr))
+        }
+        claxon::Error::Unsupported(what) => {
+            DecoderError::FormatError(format!("flac: unsupported: {}", what))
+        }
     }
 }
