@@ -7,10 +7,20 @@ pub struct VorbisDecoder<R: Read + Seek> {
     sample_rate: u32,
 }
 
-impl<R: 'static + Read + Seek> VorbisDecoder<R> {
+impl<R: Read + Seek> VorbisDecoder<R> {
+    #[inline]
     pub fn open<P: AsRef<Path>>(path: P) -> Result<VorbisDecoder<File>, DecoderError> {
         let f = File::open(path).map_err(|err| DecoderError::IOError(err))?;
         VorbisDecoder::from_reader(f)
+    }
+
+    #[inline]
+    pub fn try_decode(reader: &mut R) -> Result<bool, DecoderError> {
+        Ok(match VorbisDecoder::from_reader(reader) {
+            Ok(_) => true,
+            Err(DecoderError::FormatError(_)) => false,
+            Err(e) => return Err(e),
+        })
     }
 
     #[inline]
@@ -35,7 +45,9 @@ impl<R: 'static + Read + Seek> VorbisDecoder<R> {
             channels: self.channels,
         }
     }
+}
 
+impl<R: 'static + Read + Seek> VorbisDecoder<R> {
     #[inline]
     pub fn into_samples(
         mut self,

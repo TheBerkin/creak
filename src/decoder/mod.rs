@@ -245,31 +245,42 @@ impl<R: 'static + Seek + Read> FormatDecoder<R> {
     }
 
     #[inline]
-    fn check_type(reader: R) -> Result<(R, &'static str), io::Error> {
-        use tree_magic::{from_u8, is_alias};
-        let mut reader = BufReader::new(reader);
-        let mut header = [0; 4096];
-        reader.seek(SeekFrom::Start(0))?;
-        reader.read_exact(&mut header)?;
-        let mut reader = reader.into_inner();
-        reader.seek(SeekFrom::Start(0))?;
-        let stream_type = match from_u8(&header) {
-            t if is_alias(t.clone(), "audio/wav".into()) => "wav",
-            t if is_alias(t.clone(), "audio/ogg".into()) => "vorbis",
-            t if is_alias(t.clone(), "audio/mp3".into()) => "mp3",
-            t if is_alias(t.clone(), "audio/flac".into()) => "flac",
-            _ => "",
+    fn try_decode(reader: &mut R, format: AudioFormat) -> Result<bool, DecoderError> {
+        let ret = match format {
+            #[cfg(feature = "flac")]
+            AudioFormat::Flac => self::flac::FlacDecoder::try_decode(reader)?,
+            #[cfg(feature = "mp3")]
+            AudioFormat::Mp3 => self::mp3::Mp3Decoder::try_decode(reader)?,
+            #[cfg(feature = "vorbis")]
+            AudioFormat::Vorbis => self::vorbis::VorbisDecoder::try_decode(reader)?,
+            #[cfg(feature = "wav")]
+            AudioFormat::Wav => self::wav::WavDecoder::try_decode(reader)?,
+            _ => false,
         };
-        Ok((reader, stream_type))
+        reader
+            .seek(SeekFrom::Start(0))
+            .map_err(|err| DecoderError::IOError(err))?;
+        Ok(ret)
     }
 
     #[inline]
-    #[cfg(feature = "from_reader")]
-    pub fn from_reader(reader: R) -> Result<Self, DecoderError> {
-        // Check the file header to see which backend to use
-        let (reader, stream_type) =
-            Self::check_type(reader).map_err(|err| DecoderError::IOError(err))?;
-        get_decoder!(stream_type,
+    pub fn from_reader(mut reader: R) -> Result<Self, DecoderError> {
+        get_decoder!([
+            (AudioFormat::Flac, "flac"),
+            (AudioFormat::Mp3, "mp3"),
+            (AudioFormat::Vorbis, "ogg"),
+            (AudioFormat::Wav, "wav"),
+        ]
+        .iter()
+        .filter_map(|(format, ext)| {
+            if let Ok(true) = Self::try_decode(&mut reader, *format) {
+                Some(*ext)
+            } else {
+                None
+            }
+        })
+        .next()
+        .unwrap_or_default(),
             "wav" => requires "wav" for Self::Wav(self::wav::WavDecoder::from_reader(reader)?),
             "ogg" => requires "vorbis" for Self::Vorbis(self::vorbis::VorbisDecoder::from_reader(reader)?),
             "mp3" => requires "mp3" for Self::Mp3(self::mp3::Mp3Decoder::from_reader(reader)?),
@@ -344,9 +355,7 @@ impl Display for DecoderError {
             Self::IOError(err) => write!(f, "IO error: {}", err),
             Self::FormatError(err) => write!(f, "format error: {}", err),
             Self::NoExtension => write!(f, "file has no extension"),
-            Self::UnsupportedExtension(ext) => {
-                write!(f, "extension '{}' is not supported", ext)
-            }
+            Self::UnsupportedExtension(ext) => write!(f, "extension '{}' is not supported", ext),
             Self::DisabledExtension { extension, feature } => write!(
                 f,
                 "feature '{}' is required to read '{}' files, but is not enabled",

@@ -15,6 +15,15 @@ impl<R: Read + Seek> FlacDecoder<R> {
     }
 
     #[inline]
+    pub fn try_decode(reader: &mut R) -> Result<bool, DecoderError> {
+        Ok(match FlacDecoder::from_reader(reader) {
+            Ok(_) => true,
+            Err(DecoderError::FormatError(_)) => false,
+            Err(e) => return Err(e),
+        })
+    }
+
+    #[inline]
     pub fn from_reader(reader: R) -> Result<Self, DecoderError> {
         let reader = FlacReader::new(reader).map_err(flac_err_as_decoder_err)?;
         let (sample_rate, channels) = (

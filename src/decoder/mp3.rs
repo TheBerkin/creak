@@ -16,6 +16,15 @@ impl<R: Read + Seek> Mp3Decoder<R> {
     }
 
     #[inline]
+    pub fn try_decode(reader: &mut R) -> Result<bool, DecoderError> {
+        Ok(match Mp3Decoder::from_reader(reader) {
+            Ok(_) => true,
+            Err(DecoderError::FormatError(_)) => false,
+            Err(e) => return Err(e),
+        })
+    }
+
+    #[inline]
     pub fn from_reader(reader: R) -> Result<Self, DecoderError> {
         let mut reader = Mp3Reader::new(reader);
         let first_frame = loop {

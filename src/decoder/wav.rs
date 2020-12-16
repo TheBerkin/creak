@@ -6,11 +6,20 @@ pub struct WavDecoder<R: Read + Seek> {
     spec: WavSpec,
 }
 
-impl<R: 'static + Read + Seek> WavDecoder<R> {
+impl<R: Read + Seek> WavDecoder<R> {
     #[inline]
     pub fn open<P: AsRef<Path>>(path: P) -> Result<WavDecoder<File>, DecoderError> {
         let f = File::open(path).map_err(|err| DecoderError::IOError(err))?;
         WavDecoder::from_reader(f)
+    }
+
+    #[inline]
+    pub fn try_decode(reader: &mut R) -> Result<bool, DecoderError> {
+        Ok(match WavDecoder::from_reader(reader) {
+            Ok(_) => true,
+            Err(DecoderError::FormatError(_)) => false,
+            Err(e) => return Err(e),
+        })
     }
 
     #[inline]
@@ -31,7 +40,9 @@ impl<R: 'static + Read + Seek> WavDecoder<R> {
             channels: spec.channels as usize,
         }
     }
+}
 
+impl<R: 'static + Read + Seek> WavDecoder<R> {
     pub fn into_samples(
         self,
     ) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {
