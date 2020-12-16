@@ -170,7 +170,6 @@ impl Decoder<File> {
 
 impl<R: 'static + Read + Seek> Decoder<R> {
     #[inline]
-    #[cfg(feature = "from_reader")]
     pub fn from_reader(reader: R) -> Result<Self, DecoderError> {
         Ok(Self {
             decoder: FormatDecoder::from_reader(reader)?,
