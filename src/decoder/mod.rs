@@ -1,14 +1,23 @@
-use std::{fmt::Display, fs::File, io::{self, BufReader}, path::Path};
+use std::{
+    fmt::Display,
+    fs::File,
+    io::{self, BufReader, Read, Seek, SeekFrom},
+    path::Path,
+};
 
 use std::error::Error;
 
 use self::raw::RawDecoder;
 
+#[cfg(feature = "flac")]
+mod flac;
+#[cfg(feature = "mp3")]
+mod mp3;
 mod raw;
-#[cfg(feature = "wav")] mod wav;
-#[cfg(feature = "vorbis")] mod vorbis;
-#[cfg(feature = "mp3")] mod mp3;
-#[cfg(feature = "flac")] mod flac;
+#[cfg(feature = "vorbis")]
+mod vorbis;
+#[cfg(feature = "wav")]
+mod wav;
 
 /// The type of decoded audio samples.
 pub type Sample = f32;
@@ -16,8 +25,8 @@ pub type Sample = f32;
 /// An audio decoder.
 ///
 /// Use `Decoder::open` or `Decoder::open_raw` to open an audio file and read samples.
-pub struct Decoder {
-    decoder: FormatDecoder
+pub struct Decoder<R: Read + Seek> {
+    decoder: FormatDecoder<R>,
 }
 
 /// Specification decsribing how to decode some raw audio samples.
@@ -72,7 +81,7 @@ pub enum RawSampleFormat {
     /// Unsigned 64-bit integer sample format.
     Unsigned64,
     /// Signed 64-bit integer sample format.
-    Signed64
+    Signed64,
 }
 
 /// Information about an opened audio file.
@@ -97,7 +106,7 @@ impl AudioInfo {
     }
 
     /// Gets the original format of the audio.
-    #[inline] 
+    #[inline]
     pub fn format(&self) -> AudioFormat {
         self.format
     }
@@ -121,16 +130,16 @@ pub enum AudioFormat {
 impl Display for AudioFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AudioFormat::Wav => write!(f, "WAV"),
-            AudioFormat::Vorbis => write!(f, "Vorbis"),
-            AudioFormat::Mp3 => write!(f, "MP3"),
-            AudioFormat::Flac => write!(f, "FLAC"),
-            AudioFormat::Raw => write!(f, "Raw"),
+            Self::Wav => write!(f, "WAV"),
+            Self::Vorbis => write!(f, "Vorbis"),
+            Self::Mp3 => write!(f, "MP3"),
+            Self::Flac => write!(f, "FLAC"),
+            Self::Raw => write!(f, "Raw"),
         }
     }
 }
 
-impl Decoder {
+impl Decoder<File> {
     /// Attempts to open the specified audio file for decoding.
     ///
     /// Creak uses the file's extension to determine what kind of format it is.
@@ -143,7 +152,7 @@ impl Decoder {
     #[inline]
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, DecoderError> {
         Ok(Self {
-            decoder: FormatDecoder::open(path)?
+            decoder: FormatDecoder::<File>::open(path)?,
         })
     }
 
@@ -154,12 +163,19 @@ impl Decoder {
     pub fn open_raw<P: AsRef<Path>>(path: P, spec: RawAudioSpec) -> Result<Self, DecoderError> {
         let f = File::open(path).map_err(DecoderError::IOError)?;
         Ok(Self {
-            decoder: FormatDecoder::Raw(RawDecoder::new(BufReader::new(f), spec)?)
+            decoder: FormatDecoder::Raw(RawDecoder::new(BufReader::new(f), spec)?),
         })
     }
 }
 
-impl Decoder {
+impl<'reader, R: 'reader + Read + Seek> Decoder<R> {
+    #[inline]
+    pub fn from_reader(reader: R) -> Result<Self, DecoderError> {
+        Ok(Self {
+            decoder: FormatDecoder::from_reader(reader)?,
+        })
+    }
+
     /// Gets information about the audio, such as channel count and sample rate.
     #[inline]
     pub fn info(&self) -> AudioInfo {
@@ -169,15 +185,17 @@ impl Decoder {
     /// Consumes the `Decoder` and returns an iterator over the samples.
     /// Channels are interleaved.
     #[inline]
-    pub fn into_samples(self) -> Result<SampleIterator, DecoderError> {
+    pub fn into_samples(self) -> Result<SampleIterator<'reader>, DecoderError> {
         self.decoder.into_samples()
     }
 }
 
 /// Iterates over decoded audio samples. Channels are interleaved.
-pub struct SampleIterator(Box<dyn Iterator<Item = Result<Sample, DecoderError>>>);
+pub struct SampleIterator<'reader>(
+    Box<dyn 'reader + Iterator<Item = Result<Sample, DecoderError>>>,
+);
 
-impl Iterator for SampleIterator {
+impl<'reader> Iterator for SampleIterator<'reader> {
     type Item = Result<Sample, DecoderError>;
 
     #[inline(always)]
@@ -186,74 +204,118 @@ impl Iterator for SampleIterator {
     }
 }
 
-pub(crate) enum FormatDecoder {
-    Raw(self::raw::RawDecoder<BufReader<File>>),
+pub(crate) enum FormatDecoder<R: Read + Seek> {
+    Raw(self::raw::RawDecoder<BufReader<R>>),
     #[cfg(feature = "wav")]
-    Wav(self::wav::WavDecoder),
+    Wav(self::wav::WavDecoder<R>),
     #[cfg(feature = "vorbis")]
-    Vorbis(self::vorbis::VorbisDecoder),
+    Vorbis(self::vorbis::VorbisDecoder<R>),
     #[cfg(feature = "mp3")]
-    Mp3(self::mp3::Mp3Decoder),
+    Mp3(self::mp3::Mp3Decoder<R>),
     #[cfg(feature = "flac")]
-    Flac(self::flac::FlacDecoder),
+    Flac(self::flac::FlacDecoder<R>),
 }
 
-impl FormatDecoder {
-    #[inline]
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, DecoderError> {
-        macro_rules! get_decoder {
-            ($in_ext:expr, $($ext:literal => requires $feature:literal for $init:expr),*) => {
-                match $in_ext {
-                    $(
-                        #[cfg(feature = $feature)]
-                        $ext => { return Ok($init) }
-                        #[cfg(not(feature = $feature))]
-                        $ext => { return Err(DecoderError::DisabledExtension { feature: $feature, extension: $ext }) }
-                    )*
-                    other => return Err(DecoderError::UnsupportedExtension(other.to_owned()))
-                }
-            }
+macro_rules! get_decoder {
+    ($in_ext:expr, $($ext:literal => requires $feature:literal for $init:expr),*) => {
+        match $in_ext {
+            $(
+                #[cfg(feature = $feature)]
+                $ext => { return Ok($init) }
+                #[cfg(not(feature = $feature))]
+                $ext => { return Err(DecoderError::DisabledExtension { feature: $feature, extension: $ext }) }
+            )*
+            other => return Err(DecoderError::UnsupportedExtension(other.to_owned()))
         }
+    }
+}
 
+impl<'reader, R: 'reader + Seek + Read> FormatDecoder<R> {
+    #[inline]
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<FormatDecoder<File>, DecoderError> {
         // Check the file extension to see which backend to use
         if let Some(ext) = path.as_ref().extension().and_then(|ext| ext.to_str()) {
             get_decoder!(ext,
-                "wav" => requires "wav" for FormatDecoder::Wav(self::wav::WavDecoder::open(path)?),
-                "ogg" => requires "vorbis" for FormatDecoder::Vorbis(self::vorbis::VorbisDecoder::open(path)?),
-                "mp3" => requires "mp3" for FormatDecoder::Mp3(self::mp3::Mp3Decoder::open(path)?),
-                "flac" => requires "flac" for FormatDecoder::Flac(self::flac::FlacDecoder::open(path)?)
+                "wav" => requires "wav" for FormatDecoder::Wav(self::wav::WavDecoder::<File>::open(path)?),
+                "ogg" => requires "vorbis" for FormatDecoder::Vorbis(self::vorbis::VorbisDecoder::<File>::open(path)?),
+                "mp3" => requires "mp3" for FormatDecoder::Mp3(self::mp3::Mp3Decoder::<File>::open(path)?),
+                "flac" => requires "flac" for FormatDecoder::Flac(self::flac::FlacDecoder::<File>::open(path)?)
             )
         }
         Err(DecoderError::NoExtension)
     }
 
     #[inline]
-    pub fn into_samples(self) -> Result<SampleIterator, DecoderError> {
-        match self {
-            FormatDecoder::Raw(d) => Ok(SampleIterator(d.into_samples()?)),
-            #[cfg(feature = "wav")]
-            FormatDecoder::Wav(d) => Ok(SampleIterator(d.into_samples()?)),
-            #[cfg(feature = "vorbis")]
-            FormatDecoder::Vorbis(d) => Ok(SampleIterator(d.into_samples()?)),
-            #[cfg(feature = "mp3")]
-            FormatDecoder::Mp3(d) => Ok(SampleIterator(d.into_samples()?)),
+    fn try_decode(reader: &mut R, format: AudioFormat) -> Result<bool, DecoderError> {
+        let ret = match format {
             #[cfg(feature = "flac")]
-            FormatDecoder::Flac(d) => Ok(SampleIterator(d.into_samples()?))
+            AudioFormat::Flac => self::flac::FlacDecoder::try_decode(reader)?,
+            #[cfg(feature = "mp3")]
+            AudioFormat::Mp3 => self::mp3::Mp3Decoder::try_decode(reader)?,
+            #[cfg(feature = "vorbis")]
+            AudioFormat::Vorbis => self::vorbis::VorbisDecoder::try_decode(reader)?,
+            #[cfg(feature = "wav")]
+            AudioFormat::Wav => self::wav::WavDecoder::try_decode(reader)?,
+            _ => false,
+        };
+        reader
+            .seek(SeekFrom::Start(0))
+            .map_err(|err| DecoderError::IOError(err))?;
+        Ok(ret)
+    }
+
+    #[inline]
+    pub fn from_reader(mut reader: R) -> Result<Self, DecoderError> {
+        get_decoder!([
+            (AudioFormat::Flac, "flac"),
+            (AudioFormat::Mp3, "mp3"),
+            (AudioFormat::Vorbis, "ogg"),
+            (AudioFormat::Wav, "wav"),
+        ]
+        .iter()
+        .filter_map(|(format, ext)| {
+            if let Ok(true) = Self::try_decode(&mut reader, *format) {
+                Some(*ext)
+            } else {
+                None
+            }
+        })
+        .next()
+        .unwrap_or_default(),
+            "wav" => requires "wav" for Self::Wav(self::wav::WavDecoder::from_reader(reader)?),
+            "ogg" => requires "vorbis" for Self::Vorbis(self::vorbis::VorbisDecoder::from_reader(reader)?),
+            "mp3" => requires "mp3" for Self::Mp3(self::mp3::Mp3Decoder::from_reader(reader)?),
+            "flac" => requires "flac" for Self::Flac(self::flac::FlacDecoder::from_reader(reader)?)
+        )
+    }
+
+    #[inline]
+    pub fn into_samples(self) -> Result<SampleIterator<'reader>, DecoderError> {
+        match self {
+            Self::Raw(d) => Ok(SampleIterator(d.into_samples()?)),
+            #[cfg(feature = "wav")]
+            Self::Wav(d) => Ok(SampleIterator(d.into_samples()?)),
+            #[cfg(feature = "vorbis")]
+            Self::Vorbis(d) => Ok(SampleIterator(d.into_samples()?)),
+            #[cfg(feature = "mp3")]
+            Self::Mp3(d) => Ok(SampleIterator(d.into_samples()?)),
+            #[cfg(feature = "flac")]
+            Self::Flac(d) => Ok(SampleIterator(d.into_samples()?)),
         }
     }
 
     #[inline]
     pub fn info(&self) -> AudioInfo {
         match self {
-            FormatDecoder::Raw(d) => d.info(),
+            Self::Raw(d) => d.info(),
             #[cfg(feature = "wav")]
-            FormatDecoder::Wav(d) => d.info(),
+            Self::Wav(d) => d.info(),
             #[cfg(feature = "vorbis")]
-            FormatDecoder::Vorbis(d) => d.info(),
+            Self::Vorbis(d) => d.info(),
             #[cfg(feature = "mp3")]
-            FormatDecoder::Mp3(d) => d.info(),
+            Self::Mp3(d) => d.info(),
             #[cfg(feature = "flac")]
-            FormatDecoder::Flac(d) => d.info(),
+            Self::Flac(d) => d.info(),
         }
     }
 }
@@ -291,12 +353,16 @@ impl Error for DecoderError {
 impl Display for DecoderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DecoderError::IOError(err) => write!(f, "IO error: {}", err),
-            DecoderError::FormatError(err) => write!(f, "format error: {}", err),
-            DecoderError::NoExtension => write!(f, "file has no extension"),
-            DecoderError::UnsupportedExtension(ext) => write!(f, "extension '{}' is not supported", ext),
-            DecoderError::DisabledExtension { extension, feature } => write!(f, "feature '{}' is required to read '{}' files, but is not enabled", feature, extension),
-            DecoderError::IncompleteData => write!(f, "incomplete data"),
+            Self::IOError(err) => write!(f, "IO error: {}", err),
+            Self::FormatError(err) => write!(f, "format error: {}", err),
+            Self::NoExtension => write!(f, "file has no extension"),
+            Self::UnsupportedExtension(ext) => write!(f, "extension '{}' is not supported", ext),
+            Self::DisabledExtension { extension, feature } => write!(
+                f,
+                "feature '{}' is required to read '{}' files, but is not enabled",
+                feature, extension
+            ),
+            Self::IncompleteData => write!(f, "incomplete data"),
         }
     }
 }

@@ -1,9 +1,6 @@
+use super::*;
 
-use std::io::{Read, Seek, SeekFrom};
-
-use crate::{AudioFormat, AudioInfo, DecoderError, Endian, RawAudioSpec, RawSampleFormat};
-
-pub struct RawDecoder<R: Read + Seek> {
+pub struct RawDecoder<R> {
     reader: R,
     spec: RawAudioSpec,
     info: AudioInfo,
@@ -13,7 +10,7 @@ impl<R: Read + Seek> RawDecoder<R> {
     pub fn new(mut reader: R, spec: RawAudioSpec) -> Result<Self, DecoderError> {
         // Attempt to seek to requested starting position
         if let Err(err) = reader.seek(SeekFrom::Start(spec.start_offset as _)) {
-            return Err(DecoderError::IOError(err))
+            return Err(DecoderError::IOError(err));
         }
 
         let info = AudioInfo {
@@ -22,24 +19,22 @@ impl<R: Read + Seek> RawDecoder<R> {
             sample_rate: spec.sample_rate,
         };
 
-        Ok(Self {
-            reader,
-            spec,
-            info
-        })
+        Ok(Self { reader, spec, info })
     }
 }
 
-impl<R: Read + Seek> RawDecoder<R> {
-
+impl<R: Read> RawDecoder<R> {
     #[inline]
     pub fn info(&self) -> AudioInfo {
         self.info.clone()
     }
 
     #[inline]
-    pub fn into_samples<'a>(self) -> Result<Box<dyn 'a + Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError>
-    where R: 'a
+    pub fn into_samples<'reader>(
+        self,
+    ) -> Result<Box<dyn 'reader + Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError>
+    where
+        R: 'reader,
     {
         let endian = self.spec.endianness;
 
@@ -89,7 +84,6 @@ impl<R: Read + Seek> RawDecoder<R> {
                 })
             };
         }
-        
         Ok(match self.spec.sample_format {
             RawSampleFormat::Float32 => sample_iterator!(move |reader: &mut R| {
                 const SIZEOF_FLOAT: usize = 4;
@@ -126,8 +120,18 @@ impl<R: Read + Seek> RawDecoder<R> {
                     Ok(0) => None,
                     Ok(SIZE) => Some(Ok(match endian {
                         // I am so sorry.
-                        Endian::Big => u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as f32 / MAX_U24 as f32 * 2.0 - 1.0,
-                        Endian::Little => u32::from_be_bytes([buf[1], buf[2], buf[3], buf[4]]) as f32 / MAX_U24 as f32 * 2.0 - 1.0,
+                        Endian::Big => {
+                            u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as f32
+                                / MAX_U24 as f32
+                                * 2.0
+                                - 1.0
+                        }
+                        Endian::Little => {
+                            u32::from_be_bytes([buf[1], buf[2], buf[3], buf[4]]) as f32
+                                / MAX_U24 as f32
+                                * 2.0
+                                - 1.0
+                        }
                     })),
                     Ok(_) => Some(Err(DecoderError::IncompleteData)),
                     Err(err) => Some(Err(DecoderError::IOError(err))),
@@ -140,9 +144,15 @@ impl<R: Read + Seek> RawDecoder<R> {
                 let mut buf = [0; BUFFER_SIZE];
                 match reader.read(&mut buf[1..SIZE]) {
                     Ok(0) => None,
-                    Ok(SIZE) => Some(Ok(match endian {                        
-                        Endian::Big => i32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as f32 / MAX_I24 as f32,
-                        Endian::Little => i32::from_be_bytes([buf[1], buf[2], buf[3], buf[4]]) as f32 / MAX_I24 as f32,
+                    Ok(SIZE) => Some(Ok(match endian {
+                        Endian::Big => {
+                            i32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as f32
+                                / MAX_I24 as f32
+                        }
+                        Endian::Little => {
+                            i32::from_be_bytes([buf[1], buf[2], buf[3], buf[4]]) as f32
+                                / MAX_I24 as f32
+                        }
                     })),
                     Ok(_) => Some(Err(DecoderError::IncompleteData)),
                     Err(err) => Some(Err(DecoderError::IOError(err))),
@@ -160,12 +170,14 @@ impl<R: Read + Seek> RawDecoder<R> {
     }
 }
 
-struct RawSampleIterator<R: Read + Seek, F: Fn(&mut R) -> Option<Result<crate::Sample, DecoderError>>> {
+struct RawSampleIterator<R: Read, F: Fn(&mut R) -> Option<Result<crate::Sample, DecoderError>>> {
     reader: R,
     read_func: F,
 }
 
-impl<R: Read + Seek, F: Fn(&mut R) -> Option<Result<crate::Sample, DecoderError>>> Iterator for RawSampleIterator<R, F> {
+impl<R: Read, F: Fn(&mut R) -> Option<Result<crate::Sample, DecoderError>>> Iterator
+    for RawSampleIterator<R, F>
+{
     type Item = Result<crate::Sample, DecoderError>;
 
     #[inline]

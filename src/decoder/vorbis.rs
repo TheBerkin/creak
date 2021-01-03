@@ -1,24 +1,33 @@
-use std::{fs::File, io::Read, path::Path, io::Seek};
-
+use super::*;
 use lewton::inside_ogg::OggStreamReader;
 
-use crate::{AudioFormat, AudioInfo, DecoderError};
-
-pub struct VorbisDecoder {
-    reader: OggStreamReader<File>,
+pub struct VorbisDecoder<R: Read + Seek> {
+    reader: OggStreamReader<R>,
     channels: usize,
     sample_rate: u32,
 }
 
-impl VorbisDecoder {
+impl<R: Read + Seek> VorbisDecoder<R> {
     #[inline]
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, DecoderError> {
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<VorbisDecoder<File>, DecoderError> {
         let f = File::open(path).map_err(|err| DecoderError::IOError(err))?;
-        let reader = match OggStreamReader::new(f) {
+        VorbisDecoder::from_reader(f)
+    }
+
+    #[inline]
+    pub fn try_decode(reader: &mut R) -> Result<bool, DecoderError> {
+        Ok(match VorbisDecoder::from_reader(reader) {
+            Ok(_) => true,
+            Err(DecoderError::FormatError(_)) => false,
+            Err(e) => return Err(e),
+        })
+    }
+
+    #[inline]
+    pub fn from_reader(reader: R) -> Result<Self, DecoderError> {
+        let reader = match OggStreamReader::new(reader) {
             Ok(reader) => reader,
-            Err(err) => {
-                return Err(vorbis_err_to_decoder_err(err))
-            }
+            Err(err) => return Err(vorbis_err_to_decoder_err(err)),
         };
 
         Ok(Self {
@@ -36,11 +45,19 @@ impl VorbisDecoder {
             channels: self.channels,
         }
     }
+}
 
+impl<'reader, R: 'reader + Read + Seek> VorbisDecoder<R> {
     #[inline]
-    pub fn into_samples(mut self) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {
+    pub fn into_samples(
+        mut self,
+    ) -> Result<Box<dyn 'reader + Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError>
+    {
         Ok(Box::new(OggSampleIterator {
-            cur_packet: self.reader.read_dec_packet_itl().map_err(vorbis_err_to_decoder_err)?,
+            cur_packet: self
+                .reader
+                .read_dec_packet_itl()
+                .map_err(vorbis_err_to_decoder_err)?,
             reader: self.reader,
             packet_cursor: 0,
         }))
@@ -59,7 +76,7 @@ impl<T: Read + Seek> OggSampleIterator<T> {
         self.packet_cursor = 0;
         self.cur_packet = match self.reader.read_dec_packet_itl() {
             Ok(packet) => packet,
-            Err(err) => return Err(vorbis_err_to_decoder_err(err))
+            Err(err) => return Err(vorbis_err_to_decoder_err(err)),
         };
         Ok(())
     }
@@ -81,19 +98,19 @@ impl<T: Read + Seek> Iterator for OggSampleIterator<T> {
                     // Get the next packet if done reading this one
                     if self.packet_cursor >= packet.len() {
                         if let Err(err) = self.next_packet() {
-                            return Some(Err(err))
+                            return Some(Err(err));
                         }
                     }
 
                     // Convert the sample and return it
                     let sample_float = sample as f32 / i16::MAX as f32;
-                    return Some(Ok(sample_float))
-                },
-                None => {                        
+                    return Some(Ok(sample_float));
+                }
+                None => {
                     if let Err(err) = self.next_packet() {
-                        return Some(Err(err))
+                        return Some(Err(err));
                     }
-                    continue
+                    continue;
                 }
             }
         }
@@ -103,8 +120,12 @@ impl<T: Read + Seek> Iterator for OggSampleIterator<T> {
 
 fn vorbis_err_to_decoder_err(error: lewton::VorbisError) -> DecoderError {
     match error {
-        lewton::VorbisError::BadAudio(err) => DecoderError::FormatError(format!("ogg: bad audio: {}", err)),
-        lewton::VorbisError::BadHeader(err) => DecoderError::FormatError(format!("ogg: bad header: {}", err)),
+        lewton::VorbisError::BadAudio(err) => {
+            DecoderError::FormatError(format!("ogg: bad audio: {}", err))
+        }
+        lewton::VorbisError::BadHeader(err) => {
+            DecoderError::FormatError(format!("ogg: bad header: {}", err))
+        }
         lewton::VorbisError::OggError(err) => DecoderError::FormatError(format!("ogg: {}", err)),
     }
 }

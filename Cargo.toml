@@ -23,6 +23,10 @@ exclude = [
 name = "creak-raw"
 path = "src/tools/creak-raw.rs"
 
+[[bin]]
+name = "creak-reader"
+path = "src/tools/creak-reader.rs"
+
 [profile.release]
 codegen-units = 1
 
