@@ -1,13 +1,13 @@
 use super::*;
 use claxon::FlacReader;
 
-pub struct FlacDecoder<R: Read + Seek> {
+pub struct FlacDecoder<R: Read> {
     reader: FlacReader<R>,
     sample_rate: u32,
     channels: usize,
 }
 
-impl<R: Read + Seek> FlacDecoder<R> {
+impl<R: Read> FlacDecoder<R> {
     #[inline]
     pub fn open<P: AsRef<Path>>(path: P) -> Result<FlacDecoder<File>, DecoderError> {
         let f = File::open(path).map_err(|err| DecoderError::IOError(err))?;
@@ -38,7 +38,7 @@ impl<R: Read + Seek> FlacDecoder<R> {
     }
 }
 
-impl<R: 'static + Read + Seek> FlacDecoder<R> {
+impl<'reader, R: 'reader + Read> FlacDecoder<R> {
     #[inline]
     pub fn info(&self) -> AudioInfo {
         AudioInfo {
@@ -51,7 +51,8 @@ impl<R: 'static + Read + Seek> FlacDecoder<R> {
     #[inline]
     pub fn into_samples(
         self,
-    ) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {
+    ) -> Result<Box<dyn 'reader + Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError>
+    {
         Ok(Box::new(FlacSampleIterator::new(self.reader)))
     }
 }
@@ -64,7 +65,7 @@ struct FlacSampleIterator<R: Read> {
     block_cursor: usize,
 }
 
-impl<'a, R: Read + 'a> FlacSampleIterator<R> {
+impl<'reader, R: 'reader + Read> FlacSampleIterator<R> {
     fn new(reader: FlacReader<R>) -> Self {
         let info = reader.streaminfo();
         Self {

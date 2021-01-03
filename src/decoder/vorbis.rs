@@ -47,11 +47,12 @@ impl<R: Read + Seek> VorbisDecoder<R> {
     }
 }
 
-impl<R: 'static + Read + Seek> VorbisDecoder<R> {
+impl<'reader, R: 'reader + Read + Seek> VorbisDecoder<R> {
     #[inline]
     pub fn into_samples(
         mut self,
-    ) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {
+    ) -> Result<Box<dyn 'reader + Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError>
+    {
         Ok(Box::new(OggSampleIterator {
             cur_packet: self
                 .reader

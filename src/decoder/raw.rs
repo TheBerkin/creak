@@ -1,6 +1,6 @@
 use super::*;
 
-pub struct RawDecoder<R: Read + Seek> {
+pub struct RawDecoder<R> {
     reader: R,
     spec: RawAudioSpec,
     info: AudioInfo,
@@ -23,18 +23,18 @@ impl<R: Read + Seek> RawDecoder<R> {
     }
 }
 
-impl<R: Read + Seek> RawDecoder<R> {
+impl<R: Read> RawDecoder<R> {
     #[inline]
     pub fn info(&self) -> AudioInfo {
         self.info.clone()
     }
 
     #[inline]
-    pub fn into_samples<'a>(
+    pub fn into_samples<'reader>(
         self,
-    ) -> Result<Box<dyn 'a + Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError>
+    ) -> Result<Box<dyn 'reader + Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError>
     where
-        R: 'a,
+        R: 'reader,
     {
         let endian = self.spec.endianness;
 
@@ -170,15 +170,12 @@ impl<R: Read + Seek> RawDecoder<R> {
     }
 }
 
-struct RawSampleIterator<
-    R: Read + Seek,
-    F: Fn(&mut R) -> Option<Result<crate::Sample, DecoderError>>,
-> {
+struct RawSampleIterator<R: Read, F: Fn(&mut R) -> Option<Result<crate::Sample, DecoderError>>> {
     reader: R,
     read_func: F,
 }
 
-impl<R: Read + Seek, F: Fn(&mut R) -> Option<Result<crate::Sample, DecoderError>>> Iterator
+impl<R: Read, F: Fn(&mut R) -> Option<Result<crate::Sample, DecoderError>>> Iterator
     for RawSampleIterator<R, F>
 {
     type Item = Result<crate::Sample, DecoderError>;

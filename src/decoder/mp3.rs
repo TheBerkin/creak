@@ -1,14 +1,14 @@
 use super::*;
 use minimp3::{Decoder as Mp3Reader, Error as Mp3Error, Frame};
 
-pub struct Mp3Decoder<R: Read + Seek> {
+pub struct Mp3Decoder<R> {
     reader: Mp3Reader<R>,
     first_frame: Frame,
     sample_rate: u32,
     channels: usize,
 }
 
-impl<R: Read + Seek> Mp3Decoder<R> {
+impl<R: Read> Mp3Decoder<R> {
     #[inline]
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Mp3Decoder<File>, DecoderError> {
         let f = File::open(path).map_err(|err| DecoderError::IOError(err))?;
@@ -47,7 +47,7 @@ impl<R: Read + Seek> Mp3Decoder<R> {
     }
 }
 
-impl<R: 'static + Read + Seek> Mp3Decoder<R> {
+impl<'reader, R: 'reader + Read> Mp3Decoder<R> {
     #[inline]
     pub fn info(&self) -> AudioInfo {
         AudioInfo {
@@ -60,7 +60,8 @@ impl<R: 'static + Read + Seek> Mp3Decoder<R> {
     #[inline]
     pub fn into_samples(
         self,
-    ) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {
+    ) -> Result<Box<dyn 'reader + Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError>
+    {
         Ok(Box::new(Mp3SampleIterator {
             expected_channels: self.channels,
             expected_sample_rate: self.sample_rate,

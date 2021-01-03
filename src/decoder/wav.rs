@@ -1,12 +1,12 @@
 use super::*;
 use hound::{WavReader, WavSpec};
 
-pub struct WavDecoder<R: Read + Seek> {
+pub struct WavDecoder<R> {
     reader: WavReader<R>,
     spec: WavSpec,
 }
 
-impl<R: Read + Seek> WavDecoder<R> {
+impl<R: Read> WavDecoder<R> {
     #[inline]
     pub fn open<P: AsRef<Path>>(path: P) -> Result<WavDecoder<File>, DecoderError> {
         let f = File::open(path).map_err(|err| DecoderError::IOError(err))?;
@@ -42,10 +42,11 @@ impl<R: Read + Seek> WavDecoder<R> {
     }
 }
 
-impl<R: 'static + Read + Seek> WavDecoder<R> {
+impl<'reader, R: 'reader + Read> WavDecoder<R> {
     pub fn into_samples(
         self,
-    ) -> Result<Box<dyn Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError> {
+    ) -> Result<Box<dyn 'reader + Iterator<Item = Result<crate::Sample, DecoderError>>>, DecoderError>
+    {
         let spec = self.spec;
         Ok(match (spec.bits_per_sample, spec.sample_format) {
             (8, hound::SampleFormat::Int) => {

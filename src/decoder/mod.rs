@@ -168,7 +168,7 @@ impl Decoder<File> {
     }
 }
 
-impl<R: 'static + Read + Seek> Decoder<R> {
+impl<'reader, R: 'reader + Read + Seek> Decoder<R> {
     #[inline]
     pub fn from_reader(reader: R) -> Result<Self, DecoderError> {
         Ok(Self {
@@ -185,15 +185,17 @@ impl<R: 'static + Read + Seek> Decoder<R> {
     /// Consumes the `Decoder` and returns an iterator over the samples.
     /// Channels are interleaved.
     #[inline]
-    pub fn into_samples(self) -> Result<SampleIterator, DecoderError> {
+    pub fn into_samples(self) -> Result<SampleIterator<'reader>, DecoderError> {
         self.decoder.into_samples()
     }
 }
 
 /// Iterates over decoded audio samples. Channels are interleaved.
-pub struct SampleIterator(Box<dyn Iterator<Item = Result<Sample, DecoderError>>>);
+pub struct SampleIterator<'reader>(
+    Box<dyn 'reader + Iterator<Item = Result<Sample, DecoderError>>>,
+);
 
-impl Iterator for SampleIterator {
+impl<'reader> Iterator for SampleIterator<'reader> {
     type Item = Result<Sample, DecoderError>;
 
     #[inline(always)]
@@ -228,7 +230,7 @@ macro_rules! get_decoder {
     }
 }
 
-impl<R: 'static + Seek + Read> FormatDecoder<R> {
+impl<'reader, R: 'reader + Seek + Read> FormatDecoder<R> {
     #[inline]
     pub fn open<P: AsRef<Path>>(path: P) -> Result<FormatDecoder<File>, DecoderError> {
         // Check the file extension to see which backend to use
@@ -288,7 +290,7 @@ impl<R: 'static + Seek + Read> FormatDecoder<R> {
     }
 
     #[inline]
-    pub fn into_samples(self) -> Result<SampleIterator, DecoderError> {
+    pub fn into_samples(self) -> Result<SampleIterator<'reader>, DecoderError> {
         match self {
             Self::Raw(d) => Ok(SampleIterator(d.into_samples()?)),
             #[cfg(feature = "wav")]
